@@ -141,7 +141,7 @@ for k in range(folds):
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     # Train loop 
-    epochs = 5
+    epochs = 25
     for epoch in range(epochs):                                       
         model.train()
         for xb, yb in train_loader:                                   
