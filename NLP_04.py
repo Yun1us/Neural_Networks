@@ -116,6 +116,7 @@ folds = 4
 fold_size = n // folds
 indices = np.random.permutation(n)
 fold_indices = [indices[i*fold_size:(i+1)*fold_size] for i in range(folds)]
+fold_losses = []
 
 for k in range(folds):
     test_idx  = fold_indices[k]
@@ -158,4 +159,5 @@ for k in range(folds):
                 pred = model(xb)
                 total_loss += loss_fn(pred, yb).item() * xb.size(0)
         avg_loss = total_loss / len(test_loader.dataset)
-        print(f"Fold {k+1} / Test-MSE: {avg_loss:.4f}")
+        fold_losses.append(avg_loss)
+    print(f"Fold {k+1} / Test-MSE: {avg_loss:.4f}")
