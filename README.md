@@ -16,7 +16,7 @@ Short, self‑contained project with two parts:
 ## 🔧 Quick start
 
 ```bash
-# create / activate your virtual env first
+# create or activate virtual environment using uv
 
 # install dependencies from pyproject.toml
 uv sync
