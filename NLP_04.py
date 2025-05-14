@@ -4,6 +4,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Function, gradcheck
+from torch.utils.data import DataLoader, TensorDataset
 
 #autograd custom
 class MyMul(Function):
@@ -53,7 +54,7 @@ print(gradcheck(MyMax.apply, (x, y)))
 
 
 class CosLinear(nn.Module):
-    def __init__(self, in_features, out_features, bias):
+    def __init__(self, in_features, out_features, bias=True):
         super().__init__()
         self.weight = nn.Parameter(torch.Tensor(out_features, in_features))
         self.reset_parameters()
@@ -105,24 +106,56 @@ n = 2**14
 dim_input = 64
 dim_output = 1
 X = np.random.randn(n, dim_input).astype(np.float32)
-true_weights = np.random.randn(dim_input, dim_output)
-y = X @ true_weights + np.random.randn(n, dim_output) * 0.1
+true_weights = np.random.randn(dim_input, dim_output).astype(np.float32)
+y = X @ true_weights + np.random.randn(n, dim_output).astype(np.float32) * 0.1
 
-#Train / Test split 
-samples = np.random.permutation(n)
-split = int(n * 0.75)
-train = samples[:split]
-test = samples[split:]
-X_train, y_train = X[train], y[train]
-X_test, y_test = X[test], y[test]
+
 
 #loss and model init
-model = Net()
-loss_CE = nn.CrossEntropyLoss()
+folds = 4
+fold_size = n // folds
+indices = np.random.permutation(n)
+fold_indices = [indices[i*fold_size:(i+1)*fold_size] for i in range(folds)]
 
-# Train loop anfang
-epoch = 5
-for e in range(epoch):
-    train_sum_loss = 0.0
-    validation_sum_loss = 0.0
-    model.train()
+for k in range(folds):
+    test_idx  = fold_indices[k]
+    train_idx = np.concatenate([
+        fold_indices[j] 
+        for j in range(folds) 
+        if j != k])
+    
+    X_tr = torch.from_numpy(X[train_idx]).float()  
+    y_tr = torch.from_numpy(y[train_idx]).float()
+    X_te = torch.from_numpy(X[test_idx]).float()    
+    y_te = torch.from_numpy(y[test_idx]).float()
+    
+    train_loader = DataLoader(                                       
+        TensorDataset(X_tr,y_tr),
+        batch_size=64, shuffle=True)
+
+    test_loader = DataLoader(                                         
+        TensorDataset(X_te, y_te),batch_size=64)
+
+    model = Net()
+    loss_fn = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    # Train loop 
+    epochs = 5
+    for epoch in range(epochs):                                       
+        model.train()
+        for xb, yb in train_loader:                                   
+            pred = model(xb)
+            loss = loss_fn(pred, yb)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            total_loss = 0.0
+            for xb, yb in test_loader:
+                pred = model(xb)
+                total_loss += loss_fn(pred, yb).item() * xb.size(0)
+        avg_loss = total_loss / len(test_loader.dataset)
+        print(f"Fold {k+1} / Test-MSE: {avg_loss:.4f}")
